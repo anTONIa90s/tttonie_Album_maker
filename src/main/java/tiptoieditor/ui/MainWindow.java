@@ -3,6 +3,7 @@ package tiptoieditor.ui;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.image.Image;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
@@ -300,6 +301,7 @@ public class MainWindow {
                 Scene scene = new Scene(root, 500, 600);
                 scene.getStylesheets().add(MainWindow.class.getResource("orange-theme.css").toExternalForm());
                 stage.setTitle("TTTool Album Creator");
+                stage.getIcons().add(new Image(MainWindow.class.getResourceAsStream("images/tttonie_icon.png")));
                 stage.setScene(scene);
                 stage.show();
                 appendProductIdToggle.setPrefWidth(appendProductIdToggle.minWidth(-1));
