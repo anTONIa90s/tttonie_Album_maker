@@ -3,6 +3,7 @@ package service.tttool;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -16,8 +17,6 @@ import tiptoieditor.ui.WorkflowTaskManager;
 
 public class TttoolService {
 
-    // Adjust this if your executable is somewhere else
-    private static final String TTTOOL_PATH = "./tools/tttool";
     private static final Pattern PRODUCT_ID_PATTERN = Pattern.compile("(?m)^Product ID:\\s*(\\d+)\\s*$");
     private final WorkflowTaskManager taskManager;
 
@@ -109,7 +108,7 @@ public class TttoolService {
 
     private String runTttool(List<String> arguments) throws IOException, InterruptedException {
         List<String> command = new ArrayList<>();
-        command.add(TTTOOL_PATH);
+        command.add(resolveTttoolPath().toString());
         command.addAll(arguments);
         ProcessBuilder processBuilder = new ProcessBuilder(command);
 
@@ -149,6 +148,40 @@ public class TttoolService {
         }
 
         return output.toString();
+    }
+
+    /** Resolves tttool from the packaged application, with a development-folder fallback. */
+    static Path resolveTttoolPath() throws IOException {
+        String executableName = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")
+                ? "tttool.exe"
+                : "tttool";
+
+        Path bundledTool = bundledApplicationDirectory()
+                .map(directory -> directory.resolve("tools").resolve(executableName))
+                .orElse(null);
+        if (bundledTool != null && Files.isRegularFile(bundledTool)) {
+            return bundledTool.toAbsolutePath();
+        }
+
+        Path developmentTool = Path.of("tools", executableName).toAbsolutePath();
+        if (Files.isRegularFile(developmentTool)) {
+            return developmentTool;
+        }
+
+        throw new IOException("Bundled tttool executable was not found. Expected: "
+                + (bundledTool == null ? developmentTool : bundledTool));
+    }
+
+    private static java.util.Optional<Path> bundledApplicationDirectory() {
+        try {
+            Path codeLocation = Path.of(TttoolService.class.getProtectionDomain()
+                    .getCodeSource().getLocation().toURI());
+            return Files.isRegularFile(codeLocation)
+                    ? java.util.Optional.ofNullable(codeLocation.getParent())
+                    : java.util.Optional.empty();
+        } catch (URISyntaxException | SecurityException e) {
+            return java.util.Optional.empty();
+        }
     }
 
     public record ProductIdResult(Path gmeFile, Integer productId, String error) {

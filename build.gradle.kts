@@ -32,7 +32,14 @@ javafx {
 }
 
 application {
-    mainClass.set("tiptoieditor.Main")
+    mainClass.set("tiptoieditor.Launcher")
+}
+
+tasks.named<Sync>("installDist") {
+    from("tools") {
+        into("lib/tools")
+        include("*.exe", "*.dll")
+    }
 }
 
 tasks.test {
