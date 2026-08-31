@@ -39,6 +39,12 @@ public class TttoolService {
         return runTttool(oidTableArguments(yamlFile));
     }
 
+    /** Creates a printable PDF containing start codes for an inclusive OID range. */
+    public String createOidRangeTable(int startOid, int endOid, Path outputPdf)
+            throws IOException, InterruptedException {
+        return runTttool(oidRangeTableArguments(startOid, endOid, outputPdf));
+    }
+
     static List<String> oidTableArguments(Path yamlFile) {
         return List.of(
                 "--image-format", "PDF",
@@ -47,6 +53,13 @@ public class TttoolService {
                 "--code-dim", "10",
                 "oid-table",
                 yamlFile.toAbsolutePath().toString());
+    }
+
+    static List<String> oidRangeTableArguments(int startOid, int endOid, Path outputPdf) {
+        return List.of(
+                "oid-table",
+                startOid + "-" + endOid,
+                outputPdf.toAbsolutePath().toString());
     }
 
     /**

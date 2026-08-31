@@ -34,6 +34,7 @@ import service.tonie.TonieAudioExportService;
 import service.tonie.TonieExportDestinationService;
 import service.tttool.TttoolService;
 import service.workflow.AlbumFolderWorkflowResolver;
+import service.yaml.GenerateYamlService;
 import org.controlsfx.control.StatusBar;
 import org.controlsfx.control.ToggleSwitch;
 import org.controlsfx.validation.ValidationSupport;
@@ -64,6 +65,7 @@ public class MainWindow {
         private StatusBar workflowStatusBar;
         private boolean manyDirectoriesMode;
         private boolean manyDirectoriesCancelled;
+        private int manyDirectoriesStartingProductId;
         private VBox manyDirectoryResults;
 
         private TextField productNameField;
@@ -74,8 +76,11 @@ public class MainWindow {
         private RowCreateYaml rowCreateYaml;
         private RowYamlToGme rowYamlToGme;
         private RowCreateOidTable rowCreateOidTable;
+        private RowCreateOidRangeTable rowCreateOidRangeTable;
         private RowExportTonieAudio rowExportTonieAudio;
         private AlbumWorkflowContinuation albumWorkflowContinuation;
+        private TextField startOidField;
+        private TextField endOidField;
 
         private final WorkflowTaskManager taskManager = new WorkflowTaskManager();
         private final TttoolService tttoolService = new TttoolService(taskManager);
@@ -156,6 +161,15 @@ public class MainWindow {
                 Label selectedOidTableFolderLabel = new Label("No folder selected");
                 Button createOidTableButton = new Button("Create OID Table");
 
+                Button selectOidRangeTableDirectoryButton = new Button("Select Directory");
+                Label selectedOidRangeTableDirectoryLabel = new Label("No folder selected");
+                Button createOidRangeTableButton = new Button("Create PDF");
+                startOidField = createOidField("Start OID");
+                endOidField = createOidField("End OID");
+                HBox oidRangeFields = new HBox(10, new Label("Start OID"), startOidField,
+                                new Label("End OID"), endOidField);
+                oidRangeFields.setAlignment(Pos.CENTER_LEFT);
+
                 Button selectTonieFileButton = new Button("Select Tonie File");
                 Label selectedTonieFileLabel = new Label("No file selected");
                 Button exportTonieAudioButton = new Button("Export OGG");
@@ -181,6 +195,9 @@ public class MainWindow {
                 rowCreateOidTable = new RowCreateOidTable(stage, selectOidTableFolderButton,
                                 selectedOidTableFolderLabel, createOidTableButton, tttoolService, this::log,
                                 this::setWorkflowStatus, taskManager);
+                rowCreateOidRangeTable = new RowCreateOidRangeTable(stage, selectOidRangeTableDirectoryButton,
+                                selectedOidRangeTableDirectoryLabel, createOidRangeTableButton, startOidField,
+                                endOidField, tttoolService, this::log, this::setWorkflowStatus, taskManager);
                 rowYamlToGme.setOnSelectedYamlFile(
                                 yamlFile -> rowCreateOidTable.setSelectedAlbumFolder(yamlFile.getParentFile()));
                 rowCreateYaml = new RowCreateYaml(stage, selectAlbumFolderButton, selectedAlbumFolderLabel,
@@ -226,6 +243,9 @@ public class MainWindow {
                 ExpandableSubActions createOidTablePane = new ExpandableSubActions(
                                 "Only create OID table", selectOidTableFolderButton, selectedOidTableFolderLabel,
                                 createOidTableButton);
+                ExpandableSubActions createOidRangeTablePane = new ExpandableSubActions(
+                                "Create PDF with many startcodes", selectOidRangeTableDirectoryButton,
+                                selectedOidRangeTableDirectoryLabel, createOidRangeTableButton, oidRangeFields);
                 ExpandableSubActions listGmeProductIdsPane = new ExpandableSubActions(
                                 "List GME Product IDs", selectGmeFolderButton, selectedGmeFolderLabel,
                                 listGmeProductIdsButton, productIdTable, listGmeProductIdsSpinner);
@@ -267,7 +287,7 @@ public class MainWindow {
                         updateDirectoryMode(useManyDirectories, productNameControl, productIdLabel,
                                         selectDirectoryControl,
                                         productDetailsGroup, runButton, workflowPanes, singleDirectoryPanes,
-                                        listGmeProductIdsPane);
+                                        List.<TitledPane>of(createOidRangeTablePane, listGmeProductIdsPane));
                 });
                 VBox buttonBox = new VBox(10, directoryModeButtons, rowInput, runRow, workflowStatusBar, workflowPanes,
                                 manyDirectoryResults);
@@ -362,7 +382,7 @@ public class MainWindow {
         private void updateDirectoryMode(boolean useManyDirectories, VBox productNameControl, Label productIdLabel,
                         VBox selectDirectoryControl, HBox productDetailsGroup, Button runButton,
                         Accordion workflowPanes, List<TitledPane> singleDirectoryPanes,
-                        TitledPane listGmeProductIdsPane) {
+                        List<TitledPane> manyDirectoryPanes) {
                 manyDirectoriesMode = useManyDirectories;
                 productNameControl.setVisible(!useManyDirectories);
                 productNameControl.setManaged(!useManyDirectories);
@@ -372,7 +392,7 @@ public class MainWindow {
                 productDetailsGroup.setAlignment(Pos.BOTTOM_RIGHT);
 
                 workflowPanes.getPanes().setAll(useManyDirectories
-                                ? List.of(listGmeProductIdsPane)
+                                ? manyDirectoryPanes
                                 : singleDirectoryPanes);
                 workflowPanes.setExpandedPane(null);
                 if (!useManyDirectories) {
@@ -420,6 +440,7 @@ public class MainWindow {
 
                 manyDirectoryResults.getChildren().clear();
                 manyDirectoriesCancelled = false;
+                manyDirectoriesStartingProductId = startingProductId;
                 runNextDirectory(mainDirectory, folders, 0, startingProductId);
         }
 
@@ -430,7 +451,7 @@ public class MainWindow {
                 }
                 if (folderIndex >= folders.size()) {
                         rowConvertAudio.setSelectedAudioFolder(mainDirectory);
-                        setWorkflowStatus("Done! All directories processed.");
+                        createBatchOidTables(mainDirectory, folders.size());
                         return;
                 }
 
@@ -533,6 +554,28 @@ public class MainWindow {
                 runNextDirectory(mainDirectory, folders, folderIndex + 1, productId + 1);
         }
 
+        private void addOidRangeTableFailure(String failure) {
+                Label result = new Label("Failed to create OID range table: " + failure);
+                result.setStyle(STATUS_ERROR_STYLE);
+                result.setWrapText(true);
+                manyDirectoryResults.getChildren().add(result);
+        }
+
+        private void createBatchOidTables(File mainDirectory, int albumCount) {
+                int startOid = manyDirectoriesStartingProductId;
+                int endOid = startOid + albumCount - 1;
+                rowCreateOidRangeTable.runToolCreateOidRangeTable(mainDirectory, startOid, endOid,
+                                "start-oid-table.pdf",
+                                () -> rowCreateOidRangeTable.runToolCreateOidRangeTable(mainDirectory,
+                                                GenerateYamlService.FIRST_SCRIPT_CODE,
+                                                GenerateYamlService.FIRST_SCRIPT_CODE
+                                                                + GenerateYamlService.SCRIPT_CODE_TRACKS,
+                                                "chapters-oid-table.pdf",
+                                                () -> setWorkflowStatus("Done! All directories processed."),
+                                                this::addOidRangeTableFailure),
+                                this::addOidRangeTableFailure);
+        }
+
         private TableView<RowListGmeProductIds.ProductIdTableRow> createProductIdTable(
                         ObservableList<RowListGmeProductIds.ProductIdTableRow> productIdRows) {
                 TableColumn<RowListGmeProductIds.ProductIdTableRow, String> gmeColumn = new TableColumn<>("gme");
@@ -582,6 +625,15 @@ public class MainWindow {
                 } catch (NumberFormatException e) {
                         return false;
                 }
+        }
+
+        private static TextField createOidField(String promptText) {
+                TextField field = new TextField();
+                field.setPromptText(promptText);
+                field.setPrefColumnCount(6);
+                field.setTextFormatter(new TextFormatter<>(
+                                change -> change.getControlNewText().matches("\\d*") ? change : null));
+                return field;
         }
 
         private static boolean requiresProductId(AlbumFolderWorkflowResolver.WorkflowResolution resolution) {

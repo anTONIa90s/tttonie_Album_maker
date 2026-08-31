@@ -20,8 +20,10 @@ import java.util.stream.Stream;
  */
 public class GenerateYamlService {
 
-    private static final int FIRST_SCRIPT_CODE = 2055;
-    private static final int SCRIPT_CODE_TRACKS = 30;
+    /** First OID reserved for generated chapter script codes. */
+    public static final int FIRST_SCRIPT_CODE = 2055;
+    /** Number of generated chapter script-code tracks. */
+    public static final int SCRIPT_CODE_TRACKS = 30;
 
     /**
      * Generates the tttool YAML and script-code YAML files.

@@ -43,6 +43,17 @@ class TttoolServiceTest {
     }
 
     @Test
+    void createsOidRangeTableWithTheRequestedRangeAndOutputFile() {
+        Path outputPdf = Path.of("Disney", "start-oid-table.pdf");
+
+        assertEquals(List.of(
+                "oid-table",
+                "900-950",
+                outputPdf.toAbsolutePath().toString()),
+                TttoolService.oidRangeTableArguments(900, 950, outputPdf));
+    }
+
+    @Test
     void parsesProductIdFromTttoolInfoOutput() throws IOException {
         String output = """
                 Product ID: 805
@@ -70,7 +81,8 @@ class TttoolServiceTest {
 
     @Test
     void productIdResultRepresentsAFailedLookup() {
-        TttoolService.ProductIdResult result = TttoolService.ProductIdResult.failure(Path.of("broken.gme"), "Invalid GME");
+        TttoolService.ProductIdResult result = TttoolService.ProductIdResult.failure(Path.of("broken.gme"),
+                "Invalid GME");
 
         assertFalse(result.isSuccess());
         assertEquals(null, result.productId());
