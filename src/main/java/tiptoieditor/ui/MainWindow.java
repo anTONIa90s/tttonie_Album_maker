@@ -66,6 +66,7 @@ public class MainWindow {
         private boolean manyDirectoriesMode;
         private boolean manyDirectoriesCancelled;
         private int manyDirectoriesStartingProductId;
+        private GenerateYamlService.ScriptCodeSettings manyDirectoriesScriptCodeSettings;
         private VBox manyDirectoryResults;
 
         private TextField productNameField;
@@ -81,6 +82,8 @@ public class MainWindow {
         private AlbumWorkflowContinuation albumWorkflowContinuation;
         private TextField startOidField;
         private TextField endOidField;
+        private TextField firstScriptCodeField;
+        private TextField scriptCodeTracksField;
 
         private final WorkflowTaskManager taskManager = new WorkflowTaskManager();
         private final TttoolService tttoolService = new TttoolService(taskManager);
@@ -170,6 +173,14 @@ public class MainWindow {
                                 new Label("End OID"), endOidField);
                 oidRangeFields.setAlignment(Pos.CENTER_LEFT);
 
+                firstScriptCodeField = createOidField("Chapter OIDs starting with");
+                firstScriptCodeField.setText(Integer.toString(GenerateYamlService.FIRST_SCRIPT_CODE));
+                scriptCodeTracksField = createOidField("Number of chapters");
+                scriptCodeTracksField.setText(Integer.toString(GenerateYamlService.SCRIPT_CODE_TRACKS));
+                HBox chapterOidFields = new HBox(10, new Label("Chapter OIDs starting with"), firstScriptCodeField,
+                                new Label("Number of chapters"), scriptCodeTracksField);
+                chapterOidFields.setAlignment(Pos.CENTER_LEFT);
+
                 Button selectTonieFileButton = new Button("Select Tonie File");
                 Label selectedTonieFileLabel = new Label("No file selected");
                 Button exportTonieAudioButton = new Button("Export OGG");
@@ -202,6 +213,7 @@ public class MainWindow {
                                 yamlFile -> rowCreateOidTable.setSelectedAlbumFolder(yamlFile.getParentFile()));
                 rowCreateYaml = new RowCreateYaml(stage, selectAlbumFolderButton, selectedAlbumFolderLabel,
                                 createYamlButton, productIdField::getText, this::getMetadataName,
+                                this::getCurrentScriptCodeSettings,
                                 rowYamlToGme::setSelectedYamlFile, this::log, this::setWorkflowStatus, taskManager);
                 createYamlButton.addEventFilter(ActionEvent.ACTION,
                                 event -> validationSupport.initInitialDecoration());
@@ -237,6 +249,8 @@ public class MainWindow {
                 ExpandableSubActions createYamlPane = new ExpandableSubActions(
                                 "Only create YAML", selectAlbumFolderButton, selectedAlbumFolderLabel,
                                 createYamlButton);
+                ExpandableSubActions chapterOidSettingsPane = new ExpandableSubActions("Chapter OID settings",
+                                chapterOidFields);
                 ExpandableSubActions createGmePane = new ExpandableSubActions(
                                 "Only create GME", selectYamlFileButton, selectedYamlFileLabel,
                                 createGmeButton);
@@ -249,11 +263,10 @@ public class MainWindow {
                 ExpandableSubActions listGmeProductIdsPane = new ExpandableSubActions(
                                 "List GME Product IDs", selectGmeFolderButton, selectedGmeFolderLabel,
                                 listGmeProductIdsButton, productIdTable, listGmeProductIdsSpinner);
-                Accordion workflowPanes = new Accordion(exportToniePane, prepAudioPane, createYamlPane, createGmePane,
-                                createOidTablePane,
-                                listGmeProductIdsPane);
-                List<TitledPane> singleDirectoryPanes = List.of(exportToniePane, prepAudioPane, createYamlPane,
-                                createGmePane, createOidTablePane, listGmeProductIdsPane);
+                Accordion workflowPanes = new Accordion(chapterOidSettingsPane, exportToniePane, prepAudioPane,
+                                createYamlPane, createGmePane, createOidTablePane, listGmeProductIdsPane);
+                List<TitledPane> singleDirectoryPanes = List.of(chapterOidSettingsPane, exportToniePane, prepAudioPane,
+                                createYamlPane, createGmePane, createOidTablePane, listGmeProductIdsPane);
 
                 workflowStatusBar = new StatusBar();
                 workflowStatusBar.setMinHeight(40);
@@ -287,7 +300,8 @@ public class MainWindow {
                         updateDirectoryMode(useManyDirectories, productNameControl, productIdLabel,
                                         selectDirectoryControl,
                                         productDetailsGroup, runButton, workflowPanes, singleDirectoryPanes,
-                                        List.<TitledPane>of(createOidRangeTablePane, listGmeProductIdsPane));
+                                        List.<TitledPane>of(chapterOidSettingsPane, createOidRangeTablePane,
+                                                        listGmeProductIdsPane));
                 });
                 VBox buttonBox = new VBox(10, directoryModeButtons, rowInput, runRow, workflowStatusBar, workflowPanes,
                                 manyDirectoryResults);
@@ -384,6 +398,9 @@ public class MainWindow {
                         Accordion workflowPanes, List<TitledPane> singleDirectoryPanes,
                         List<TitledPane> manyDirectoryPanes) {
                 manyDirectoriesMode = useManyDirectories;
+                if (!useManyDirectories) {
+                        manyDirectoriesScriptCodeSettings = null;
+                }
                 productNameControl.setVisible(!useManyDirectories);
                 productNameControl.setManaged(!useManyDirectories);
                 productIdLabel.setText(useManyDirectories ? "Starting Product ID" : "Product ID");
@@ -425,10 +442,17 @@ public class MainWindow {
                                 .toList();
                 boolean containsTonieFile = folders.stream()
                                 .map(workflowResolver::resolve)
-                                .anyMatch(resolution -> resolution.workflow()
-                                                == AlbumFolderWorkflowResolver.Workflow.EXPORT_TONIE_AUDIO);
+                                .anyMatch(resolution -> resolution
+                                                .workflow() == AlbumFolderWorkflowResolver.Workflow.EXPORT_TONIE_AUDIO);
                 if (containsTonieFile && !rowExportTonieAudio.confirmExportOnce()) {
                         setWorkflowStatus("Tonie audio export cancelled.");
+                        return;
+                }
+                try {
+                        manyDirectoriesScriptCodeSettings = getScriptCodeSettings();
+                } catch (IllegalArgumentException e) {
+                        log(e.getMessage());
+                        setWorkflowStatus("Please enter valid chapter OID settings.");
                         return;
                 }
                 int startingProductId = Integer.parseInt(productIdField.getText());
@@ -564,14 +588,18 @@ public class MainWindow {
         private void createBatchOidTables(File mainDirectory, int albumCount) {
                 int startOid = manyDirectoriesStartingProductId;
                 int endOid = startOid + albumCount - 1;
+                GenerateYamlService.ScriptCodeSettings scriptCodeSettings = manyDirectoriesScriptCodeSettings;
                 rowCreateOidRangeTable.runToolCreateOidRangeTable(mainDirectory, startOid, endOid,
                                 "start-oid-table.pdf",
                                 () -> rowCreateOidRangeTable.runToolCreateOidRangeTable(mainDirectory,
-                                                GenerateYamlService.FIRST_SCRIPT_CODE,
-                                                GenerateYamlService.FIRST_SCRIPT_CODE
-                                                                + GenerateYamlService.SCRIPT_CODE_TRACKS,
+                                                scriptCodeSettings.firstScriptCode(),
+                                                scriptCodeSettings.firstScriptCode()
+                                                                + scriptCodeSettings.scriptCodeTracks() - 1,
                                                 "chapters-oid-table.pdf",
-                                                () -> setWorkflowStatus("Done! All directories processed."),
+                                                () -> {
+                                                        manyDirectoriesScriptCodeSettings = null;
+                                                        setWorkflowStatus("Done! All directories processed.");
+                                                },
                                                 this::addOidRangeTableFailure),
                                 this::addOidRangeTableFailure);
         }
@@ -634,6 +662,26 @@ public class MainWindow {
                 field.setTextFormatter(new TextFormatter<>(
                                 change -> change.getControlNewText().matches("\\d*") ? change : null));
                 return field;
+        }
+
+        private GenerateYamlService.ScriptCodeSettings getScriptCodeSettings() {
+                String firstScriptCode = firstScriptCodeField.getText();
+                String scriptCodeTracks = scriptCodeTracksField.getText();
+                if (firstScriptCode.isBlank() || scriptCodeTracks.isBlank()) {
+                        throw new IllegalArgumentException("Please enter both chapter OID settings.");
+                }
+                try {
+                        return new GenerateYamlService.ScriptCodeSettings(Integer.parseInt(firstScriptCode),
+                                        Integer.parseInt(scriptCodeTracks));
+                } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("Please enter valid chapter OID settings.", e);
+                }
+        }
+
+        private GenerateYamlService.ScriptCodeSettings getCurrentScriptCodeSettings() {
+                return manyDirectoriesMode && manyDirectoriesScriptCodeSettings != null
+                                ? manyDirectoriesScriptCodeSettings
+                                : getScriptCodeSettings();
         }
 
         private static boolean requiresProductId(AlbumFolderWorkflowResolver.WorkflowResolution resolution) {

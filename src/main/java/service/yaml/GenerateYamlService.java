@@ -25,6 +25,21 @@ public class GenerateYamlService {
     /** Number of generated chapter script-code tracks. */
     public static final int SCRIPT_CODE_TRACKS = 30;
 
+    /** Runtime settings for the generated chapter script codes. */
+    public record ScriptCodeSettings(int firstScriptCode, int scriptCodeTracks) {
+        public ScriptCodeSettings {
+            if (firstScriptCode < 0) {
+                throw new IllegalArgumentException("Chapter OIDs must start at 0 or greater.");
+            }
+            if (scriptCodeTracks < 1) {
+                throw new IllegalArgumentException("Number of chapters must be at least 1.");
+            }
+            if ((long) firstScriptCode + scriptCodeTracks - 1 > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException("The chapter OID range exceeds " + Integer.MAX_VALUE + ".");
+            }
+        }
+    }
+
     /**
      * Generates the tttool YAML and script-code YAML files.
      *
@@ -48,7 +63,22 @@ public class GenerateYamlService {
      * @throws IOException if the audio directory cannot be read or a file cannot be written
      */
     public GeneratedYamlFiles generate(int productId, File albumDirectory, String title) throws IOException {
-        return generate(productId, albumDirectory.toPath(), title);
+        return generate(productId, albumDirectory.toPath(), title, defaultScriptCodeSettings());
+    }
+
+    /**
+     * Generates YAML files with custom chapter script-code settings.
+     *
+     * @param productId the product ID written to the main YAML file
+     * @param albumDirectory directory that contains the {@code audio} directory
+     * @param title the title used for generated filenames and YAML metadata
+     * @param scriptCodeSettings chapter OID start and number of chapter codes
+     * @return the paths of the generated main YAML and code YAML files
+     * @throws IOException if the audio directory cannot be read or a file cannot be written
+     */
+    public GeneratedYamlFiles generate(int productId, File albumDirectory, String title,
+            ScriptCodeSettings scriptCodeSettings) throws IOException {
+        return generate(productId, albumDirectory.toPath(), title, scriptCodeSettings);
     }
 
     /**
@@ -60,7 +90,7 @@ public class GenerateYamlService {
      * @throws IOException if the audio directory cannot be read or a file cannot be written
      */
     public GeneratedYamlFiles generate(int productId, Path albumDirectory) throws IOException {
-        return generate(productId, albumDirectory, null);
+        return generate(productId, albumDirectory, null, defaultScriptCodeSettings());
     }
 
     /**
@@ -74,6 +104,24 @@ public class GenerateYamlService {
      * @throws IOException if the audio directory cannot be read or a file cannot be written
      */
     public GeneratedYamlFiles generate(int productId, Path albumDirectory, String title) throws IOException {
+        return generate(productId, albumDirectory, title, defaultScriptCodeSettings());
+    }
+
+    /**
+     * Generates YAML files using custom chapter script-code settings.
+     *
+     * @param productId the product ID written to the main YAML file
+     * @param albumDirectory directory that contains the {@code audio} directory
+     * @param title the title used for generated filenames and YAML metadata; blank uses the directory name
+     * @param scriptCodeSettings chapter OID start and number of chapter codes
+     * @return the paths of the generated main YAML and code YAML files
+     * @throws IOException if the audio directory cannot be read or a file cannot be written
+     */
+    public GeneratedYamlFiles generate(int productId, Path albumDirectory, String title,
+            ScriptCodeSettings scriptCodeSettings) throws IOException {
+        if (scriptCodeSettings == null) {
+            throw new IllegalArgumentException("Chapter script-code settings are required.");
+        }
         Path normalizedDirectory = albumDirectory.toAbsolutePath().normalize();
         Path audioDirectory = normalizedDirectory.resolve("audio");
 
@@ -91,8 +139,9 @@ public class GenerateYamlService {
         Path yamlFile = normalizedDirectory.resolve(resolvedTitle + ".yaml");
         Path codesFile = normalizedDirectory.resolve(resolvedTitle + ".codes.yaml");
 
-        Files.write(yamlFile, generateTttoolScript(productId, resolvedTitle, trackCount, digits), StandardCharsets.UTF_8);
-        Files.write(codesFile, generateScriptCodes(digits), StandardCharsets.UTF_8);
+        Files.write(yamlFile, generateTttoolScript(productId, resolvedTitle, trackCount, digits,
+                scriptCodeSettings.scriptCodeTracks()), StandardCharsets.UTF_8);
+        Files.write(codesFile, generateScriptCodes(digits, scriptCodeSettings), StandardCharsets.UTF_8);
 
         return new GeneratedYamlFiles(yamlFile, codesFile);
     }
@@ -118,7 +167,12 @@ public class GenerateYamlService {
                 : directoryName;
     }
 
-    private List<String> generateTttoolScript(int productId, String title, int trackCount, int digits) {
+    private static ScriptCodeSettings defaultScriptCodeSettings() {
+        return new ScriptCodeSettings(FIRST_SCRIPT_CODE, SCRIPT_CODE_TRACKS);
+    }
+
+    private List<String> generateTttoolScript(int productId, String title, int trackCount, int digits,
+            int scriptCodeTracks) {
         List<String> lines = new ArrayList<>();
         lines.add("product-id: " + productId);
         lines.add("comment: " + title);
@@ -138,7 +192,7 @@ public class GenerateYamlService {
         addPreviousScript(lines, trackCount, digits);
         lines.add("  stop:");
         lines.add("  - C C");
-        addTrackBlocks(lines, trackCount, digits);
+        addTrackBlocks(lines, trackCount, digits, scriptCodeTracks);
         return lines;
     }
 
@@ -177,8 +231,8 @@ public class GenerateYamlService {
         }
     }
 
-    private void addTrackBlocks(List<String> lines, int trackCount, int digits) {
-        int maximumTrack = Math.max(SCRIPT_CODE_TRACKS, trackCount);
+    private void addTrackBlocks(List<String> lines, int trackCount, int digits, int scriptCodeTracks) {
+        int maximumTrack = Math.max(scriptCodeTracks, trackCount);
         for (int track = 1; track <= maximumTrack; track++) {
             String current = formatTrack(track, digits);
             lines.add("  t" + current + ":");
@@ -194,15 +248,16 @@ public class GenerateYamlService {
         }
     }
 
-    private List<String> generateScriptCodes(int digits) {
+    private List<String> generateScriptCodes(int digits, ScriptCodeSettings scriptCodeSettings) {
         List<String> lines = new ArrayList<>();
         lines.add("scriptcodes:");
         lines.add("  play: 2051");
         lines.add("  next: 2052");
         lines.add("  prev: 2053");
         lines.add("  stop: 2054");
-        for (int track = 1; track <= SCRIPT_CODE_TRACKS; track++) {
-            lines.add("  t" + formatTrack(track, digits) + ": " + (FIRST_SCRIPT_CODE + track - 1));
+        for (int track = 1; track <= scriptCodeSettings.scriptCodeTracks(); track++) {
+            lines.add("  t" + formatTrack(track, digits) + ": "
+                    + (scriptCodeSettings.firstScriptCode() + track - 1));
         }
         return lines;
     }

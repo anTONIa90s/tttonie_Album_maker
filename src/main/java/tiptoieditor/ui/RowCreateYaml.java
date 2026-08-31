@@ -18,6 +18,7 @@ public class RowCreateYaml {
     private final Label selectedAlbumFolderLabel;
     private final Supplier<String> productIdSupplier;
     private final Supplier<String> albumTitleSupplier;
+    private final Supplier<GenerateYamlService.ScriptCodeSettings> scriptCodeSettingsSupplier;
     private final Consumer<File> yamlFileConsumer;
     private final Consumer<String> logger;
     private final Consumer<String> statusUpdater;
@@ -27,11 +28,13 @@ public class RowCreateYaml {
 
     public RowCreateYaml(Stage stage, Button selectAlbumFolderButton, Label selectedAlbumFolderLabel,
             Button createYamlButton, Supplier<String> productIdSupplier, Supplier<String> albumTitleSupplier,
+            Supplier<GenerateYamlService.ScriptCodeSettings> scriptCodeSettingsSupplier,
             Consumer<File> yamlFileConsumer, Consumer<String> logger,
             Consumer<String> statusUpdater, WorkflowTaskManager taskManager) {
         this.selectedAlbumFolderLabel = selectedAlbumFolderLabel;
         this.productIdSupplier = productIdSupplier;
         this.albumTitleSupplier = albumTitleSupplier;
+        this.scriptCodeSettingsSupplier = scriptCodeSettingsSupplier;
         this.yamlFileConsumer = yamlFileConsumer;
         this.logger = logger;
         this.statusUpdater = statusUpdater;
@@ -85,12 +88,19 @@ public class RowCreateYaml {
         }
 
         int productId;
+        GenerateYamlService.ScriptCodeSettings scriptCodeSettings;
         try {
             productId = Integer.parseInt(productIdText);
+            scriptCodeSettings = scriptCodeSettingsSupplier.get();
         } catch (NumberFormatException e) {
             logger.accept("Please enter a valid product ID.");
             statusUpdater.accept("Please enter a valid product ID.");
             notifyFailure(onFailure, "Please enter a valid product ID.");
+            return;
+        } catch (IllegalArgumentException e) {
+            logger.accept(e.getMessage());
+            statusUpdater.accept("Please enter valid chapter OID settings.");
+            notifyFailure(onFailure, "Please enter valid chapter OID settings.");
             return;
         }
         File albumFolder = selectedAlbumFolder;
@@ -99,7 +109,7 @@ public class RowCreateYaml {
             try {
                 logger.accept("Creating YAML...");
                 GenerateYamlService.GeneratedYamlFiles generatedFiles = new GenerateYamlService()
-                        .generate(productId, albumFolder, albumTitleSupplier.get());
+                        .generate(productId, albumFolder, albumTitleSupplier.get(), scriptCodeSettings);
                 if (Thread.currentThread().isInterrupted()) {
                     logger.accept(cancelText);
                     statusUpdater.accept(cancelText);

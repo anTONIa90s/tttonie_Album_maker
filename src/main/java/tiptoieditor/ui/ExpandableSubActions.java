@@ -20,6 +20,16 @@ public class ExpandableSubActions extends TitledPane {
     private final Button actionButton;
     private final Node output;
 
+    /** Creates a collapsed-by-default settings pane with padded content. */
+    public ExpandableSubActions(String title, Node content) {
+        super(title, createPaddedContent(content));
+        this.loadButton = null;
+        this.selectedItemLabel = null;
+        this.actionButton = null;
+        this.output = content;
+        setExpanded(false);
+    }
+
     public ExpandableSubActions(String title, Button loadButton, Label selectedItemLabel,
                                 Button actionButton) {
         this(title, loadButton, selectedItemLabel, actionButton, null);
@@ -60,6 +70,12 @@ public class ExpandableSubActions extends TitledPane {
         if (output != null) {
             contentBox.getChildren().add(output);
         }
+        contentBox.setPadding(new Insets(10));
+        return contentBox;
+    }
+
+    private static VBox createPaddedContent(Node content) {
+        VBox contentBox = new VBox(10, content);
         contentBox.setPadding(new Insets(10));
         return contentBox;
     }
