@@ -36,27 +36,50 @@ public class TttoolService {
      * Creates the printable OID table PDF for an album YAML file.
      */
     public String createOidTable(Path yamlFile) throws IOException, InterruptedException {
-        return runTttool(oidTableArguments(yamlFile));
+        return createOidTable(yamlFile, OidTableSettings.DEFAULT);
+    }
+
+    /** Creates a printable OID table PDF using the supplied PDF rendering settings. */
+    public String createOidTable(Path yamlFile, OidTableSettings settings) throws IOException, InterruptedException {
+        return runTttool(oidTableArguments(yamlFile, settings));
     }
 
     /** Creates a printable PDF containing start codes for an inclusive OID range. */
     public String createOidRangeTable(int startOid, int endOid, Path outputPdf)
             throws IOException, InterruptedException {
-        return runTttool(oidRangeTableArguments(startOid, endOid, outputPdf));
+        return createOidRangeTable(startOid, endOid, outputPdf, OidTableSettings.DEFAULT);
+    }
+
+    /** Creates a start-code range PDF using the supplied PDF rendering settings. */
+    public String createOidRangeTable(int startOid, int endOid, Path outputPdf, OidTableSettings settings)
+            throws IOException, InterruptedException {
+        return runTttool(oidRangeTableArguments(startOid, endOid, outputPdf, settings));
     }
 
     static List<String> oidTableArguments(Path yamlFile) {
+        return oidTableArguments(yamlFile, OidTableSettings.DEFAULT);
+    }
+
+    static List<String> oidTableArguments(Path yamlFile, OidTableSettings settings) {
         return List.of(
                 "--image-format", "PDF",
-                "--dpi", "1200",
-                "--pixel-size", "4",
-                "--code-dim", "10",
+                "--dpi", Integer.toString(settings.dpi()),
+                "--pixel-size", Integer.toString(settings.pixelSize()),
+                "--code-dim", Integer.toString(settings.codeDim()),
                 "oid-table",
                 yamlFile.toAbsolutePath().toString());
     }
 
     static List<String> oidRangeTableArguments(int startOid, int endOid, Path outputPdf) {
+        return oidRangeTableArguments(startOid, endOid, outputPdf, OidTableSettings.DEFAULT);
+    }
+
+    static List<String> oidRangeTableArguments(int startOid, int endOid, Path outputPdf, OidTableSettings settings) {
         return List.of(
+                "--image-format", "PDF",
+                "--dpi", Integer.toString(settings.dpi()),
+                "--pixel-size", Integer.toString(settings.pixelSize()),
+                "--code-dim", Integer.toString(settings.codeDim()),
                 "oid-table",
                 startOid + "-" + endOid,
                 outputPdf.toAbsolutePath().toString());
@@ -209,6 +232,17 @@ public class TttoolService {
 
         public boolean isSuccess() {
             return productId != null;
+        }
+    }
+
+    /** PDF rendering options for {@code tttool oid-table}. */
+    public record OidTableSettings(int dpi, int pixelSize, int codeDim) {
+        public static final OidTableSettings DEFAULT = new OidTableSettings(1200, 4, 10);
+
+        public OidTableSettings {
+            if (dpi <= 0 || pixelSize <= 0 || codeDim <= 0) {
+                throw new IllegalArgumentException("OID table PDF settings must be greater than zero.");
+            }
         }
     }
 }

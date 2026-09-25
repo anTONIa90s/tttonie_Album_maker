@@ -10,6 +10,7 @@ import service.tttool.TttoolService;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /** Controls for creating a single start-code PDF for an inclusive OID range. */
 public class RowCreateOidRangeTable {
@@ -21,11 +22,13 @@ public class RowCreateOidRangeTable {
     private final Consumer<String> logger;
     private final Consumer<String> statusUpdater;
     private final WorkflowTaskManager taskManager;
+    private final Supplier<TttoolService.OidTableSettings> oidTableSettingsSupplier;
     private File selectedDirectory;
 
     public RowCreateOidRangeTable(Stage stage, Button selectDirectoryButton, Label selectedDirectoryLabel,
             Button createPdfButton, TextField startOidField, TextField endOidField, TttoolService tttoolService,
-            Consumer<String> logger, Consumer<String> statusUpdater, WorkflowTaskManager taskManager) {
+            Consumer<String> logger, Consumer<String> statusUpdater, WorkflowTaskManager taskManager,
+            Supplier<TttoolService.OidTableSettings> oidTableSettingsSupplier) {
         this.selectedDirectoryLabel = selectedDirectoryLabel;
         this.startOidField = startOidField;
         this.endOidField = endOidField;
@@ -33,6 +36,7 @@ public class RowCreateOidRangeTable {
         this.logger = logger;
         this.statusUpdater = statusUpdater;
         this.taskManager = taskManager;
+        this.oidTableSettingsSupplier = oidTableSettingsSupplier;
         selectDirectoryButton.setOnAction(e -> selectDirectory(stage));
         createPdfButton.setOnAction(e -> runToolCreateOidRangeTable());
     }
@@ -90,13 +94,21 @@ public class RowCreateOidRangeTable {
             return;
         }
 
+        final TttoolService.OidTableSettings oidTableSettings;
+        try {
+            oidTableSettings = oidTableSettingsSupplier.get();
+        } catch (IllegalArgumentException e) {
+            fail(onFailure, "Could not create OID range table. Invalid PDF settings.");
+            return;
+        }
+
         Path outputPdf = outputDirectory.toPath().resolve(outputFileName);
         logger.accept("Creating OID range table: " + startOid + "-" + endOid + " in "
                 + outputDirectory.getAbsolutePath());
         statusUpdater.accept("Creating OID range table...");
         taskManager.start("tttool-oid-range-table", () -> {
             try {
-                String output = tttoolService.createOidRangeTable(startOid, endOid, outputPdf);
+                String output = tttoolService.createOidRangeTable(startOid, endOid, outputPdf, oidTableSettings);
                 Platform.runLater(() -> {
                     statusUpdater.accept("Created OID range table. Done!");
                     logger.accept(output.isBlank() ? "tttool finished successfully." : output);

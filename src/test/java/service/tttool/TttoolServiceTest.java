@@ -43,14 +43,49 @@ class TttoolServiceTest {
     }
 
     @Test
+    void createsOidTableWithConfiguredPdfArguments() {
+        Path yamlFile = Path.of("Disney", "_Frozen", "tttoolAlbum.yaml");
+        TttoolService.OidTableSettings settings = new TttoolService.OidTableSettings(600, 3, 8);
+
+        assertEquals(List.of(
+                "--image-format", "PDF",
+                "--dpi", "600",
+                "--pixel-size", "3",
+                "--code-dim", "8",
+                "oid-table",
+                yamlFile.toAbsolutePath().toString()),
+                TttoolService.oidTableArguments(yamlFile, settings));
+    }
+
+    @Test
     void createsOidRangeTableWithTheRequestedRangeAndOutputFile() {
         Path outputPdf = Path.of("Disney", "start-oid-table.pdf");
 
         assertEquals(List.of(
+                "--image-format", "PDF",
+                "--dpi", "1200",
+                "--pixel-size", "4",
+                "--code-dim", "10",
                 "oid-table",
                 "900-950",
                 outputPdf.toAbsolutePath().toString()),
                 TttoolService.oidRangeTableArguments(900, 950, outputPdf));
+    }
+
+    @Test
+    void createsOidRangeTableWithConfiguredPdfArguments() {
+        Path outputPdf = Path.of("Disney", "start-oid-table.pdf");
+        TttoolService.OidTableSettings settings = new TttoolService.OidTableSettings(600, 3, 8);
+
+        assertEquals(List.of(
+                "--image-format", "PDF",
+                "--dpi", "600",
+                "--pixel-size", "3",
+                "--code-dim", "8",
+                "oid-table",
+                "900-950",
+                outputPdf.toAbsolutePath().toString()),
+                TttoolService.oidRangeTableArguments(900, 950, outputPdf, settings));
     }
 
     @Test

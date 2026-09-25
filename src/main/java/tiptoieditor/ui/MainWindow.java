@@ -1,6 +1,7 @@
 package tiptoieditor.ui;
 
 import javafx.geometry.Insets;
+import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.image.Image;
@@ -12,6 +13,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Separator;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
@@ -23,6 +25,7 @@ import javafx.scene.control.TitledPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.beans.property.SimpleIntegerProperty;
@@ -84,6 +87,9 @@ public class MainWindow {
         private TextField endOidField;
         private TextField firstScriptCodeField;
         private TextField scriptCodeTracksField;
+        private TextField oidTableDpiField;
+        private TextField oidTablePixelSizeField;
+        private TextField oidTableCodeDimField;
 
         private final WorkflowTaskManager taskManager = new WorkflowTaskManager();
         private final TttoolService tttoolService = new TttoolService(taskManager);
@@ -173,13 +179,41 @@ public class MainWindow {
                                 new Label("End OID"), endOidField);
                 oidRangeFields.setAlignment(Pos.CENTER_LEFT);
 
-                firstScriptCodeField = createOidField("Chapter OIDs starting with");
+                firstScriptCodeField = createOidField("First OID");
                 firstScriptCodeField.setText(Integer.toString(GenerateYamlService.FIRST_SCRIPT_CODE));
-                scriptCodeTracksField = createOidField("Number of chapters");
+                scriptCodeTracksField = createOidField("Number of Chapters");
                 scriptCodeTracksField.setText(Integer.toString(GenerateYamlService.SCRIPT_CODE_TRACKS));
-                HBox chapterOidFields = new HBox(10, new Label("Chapter OIDs starting with"), firstScriptCodeField,
-                                new Label("Number of chapters"), scriptCodeTracksField);
-                chapterOidFields.setAlignment(Pos.CENTER_LEFT);
+
+                oidTableDpiField = createOidField("DPI");
+                oidTableDpiField.setText(Integer.toString(TttoolService.OidTableSettings.DEFAULT.dpi()));
+                oidTablePixelSizeField = createOidField("Pixel Size");
+                oidTablePixelSizeField.setText(Integer.toString(TttoolService.OidTableSettings.DEFAULT.pixelSize()));
+                oidTableCodeDimField = createOidField("Code dimensions");
+                oidTableCodeDimField.setText(Integer.toString(TttoolService.OidTableSettings.DEFAULT.codeDim()));
+
+                Label chapterSettingsLabel = new Label("Chapter settings");
+                chapterSettingsLabel.setStyle("-fx-font-weight: bold;");
+                VBox chapterOidSettingsColumn = new VBox(8, chapterSettingsLabel,
+                                createSettingsInputRow("First OID", firstScriptCodeField),
+                                createSettingsInputRow("Number of Chapters", scriptCodeTracksField));
+
+                Label pdfSettingsLabel = new Label("PDF settings");
+                pdfSettingsLabel.setStyle("-fx-font-weight: bold;");
+                VBox pdfOidSettingsColumn = new VBox(8, pdfSettingsLabel,
+                                createSettingsInputRow("DPI", oidTableDpiField),
+                                createSettingsInputRow("Pixel Size", oidTablePixelSizeField),
+                                createSettingsInputRow("Code dimensions", oidTableCodeDimField));
+
+                chapterOidSettingsColumn.setMaxWidth(Double.MAX_VALUE);
+                pdfOidSettingsColumn.setMaxWidth(Double.MAX_VALUE);
+                HBox.setHgrow(chapterOidSettingsColumn, Priority.ALWAYS);
+                HBox.setHgrow(pdfOidSettingsColumn, Priority.ALWAYS);
+                Separator settingsDivider = new Separator(Orientation.VERTICAL);
+                settingsDivider.setMaxHeight(Double.MAX_VALUE);
+                HBox oidSettingsFields = new HBox(20, chapterOidSettingsColumn, settingsDivider,
+                                pdfOidSettingsColumn);
+                oidSettingsFields.setAlignment(Pos.TOP_LEFT);
+                oidSettingsFields.setMaxWidth(Double.MAX_VALUE);
 
                 Button selectTonieFileButton = new Button("Select Tonie File");
                 Label selectedTonieFileLabel = new Label("No file selected");
@@ -205,10 +239,11 @@ public class MainWindow {
                                 this::setWorkflowStatus, taskManager);
                 rowCreateOidTable = new RowCreateOidTable(stage, selectOidTableFolderButton,
                                 selectedOidTableFolderLabel, createOidTableButton, tttoolService, this::log,
-                                this::setWorkflowStatus, taskManager);
+                                this::setWorkflowStatus, taskManager, this::getOidTableSettings);
                 rowCreateOidRangeTable = new RowCreateOidRangeTable(stage, selectOidRangeTableDirectoryButton,
                                 selectedOidRangeTableDirectoryLabel, createOidRangeTableButton, startOidField,
-                                endOidField, tttoolService, this::log, this::setWorkflowStatus, taskManager);
+                                endOidField, tttoolService, this::log, this::setWorkflowStatus, taskManager,
+                                this::getOidTableSettings);
                 rowYamlToGme.setOnSelectedYamlFile(
                                 yamlFile -> rowCreateOidTable.setSelectedAlbumFolder(yamlFile.getParentFile()));
                 rowCreateYaml = new RowCreateYaml(stage, selectAlbumFolderButton, selectedAlbumFolderLabel,
@@ -249,8 +284,8 @@ public class MainWindow {
                 ExpandableSubActions createYamlPane = new ExpandableSubActions(
                                 "Only create YAML", selectAlbumFolderButton, selectedAlbumFolderLabel,
                                 createYamlButton);
-                ExpandableSubActions chapterOidSettingsPane = new ExpandableSubActions("Chapter OID settings",
-                                chapterOidFields);
+                ExpandableSubActions chapterOidSettingsPane = new ExpandableSubActions("OID settings",
+                                oidSettingsFields);
                 ExpandableSubActions createGmePane = new ExpandableSubActions(
                                 "Only create GME", selectYamlFileButton, selectedYamlFileLabel,
                                 createGmeButton);
@@ -664,6 +699,16 @@ public class MainWindow {
                 return field;
         }
 
+        private static HBox createSettingsInputRow(String labelText, TextField field) {
+                Region spacer = new Region();
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                HBox row = new HBox(10, new Label(labelText), spacer, field);
+                row.setAlignment(Pos.CENTER_LEFT);
+                row.setMaxWidth(Double.MAX_VALUE);
+                return row;
+        }
+
         private GenerateYamlService.ScriptCodeSettings getScriptCodeSettings() {
                 String firstScriptCode = firstScriptCodeField.getText();
                 String scriptCodeTracks = scriptCodeTracksField.getText();
@@ -682,6 +727,17 @@ public class MainWindow {
                 return manyDirectoriesMode && manyDirectoriesScriptCodeSettings != null
                                 ? manyDirectoriesScriptCodeSettings
                                 : getScriptCodeSettings();
+        }
+
+        private TttoolService.OidTableSettings getOidTableSettings() {
+                try {
+                        return new TttoolService.OidTableSettings(
+                                        Integer.parseInt(oidTableDpiField.getText()),
+                                        Integer.parseInt(oidTablePixelSizeField.getText()),
+                                        Integer.parseInt(oidTableCodeDimField.getText()));
+                } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("Please enter valid OID table PDF settings.", e);
+                }
         }
 
         private static boolean requiresProductId(AlbumFolderWorkflowResolver.WorkflowResolution resolution) {

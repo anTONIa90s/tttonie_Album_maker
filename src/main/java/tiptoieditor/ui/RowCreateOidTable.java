@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /** Controls for creating an OID table PDF from an album YAML file. */
 public class RowCreateOidTable {
@@ -20,17 +21,19 @@ public class RowCreateOidTable {
     private final Consumer<String> logger;
     private final Consumer<String> statusUpdater;
     private final WorkflowTaskManager taskManager;
+    private final Supplier<TttoolService.OidTableSettings> oidTableSettingsSupplier;
     private File selectedAlbumFolder;
 
     public RowCreateOidTable(Stage stage, Button selectAlbumFolderButton, Label selectedAlbumFolderLabel,
             Button createOidTableButton, TttoolService tttoolService,
             Consumer<String> logger, Consumer<String> statusUpdater,
-            WorkflowTaskManager taskManager) {
+            WorkflowTaskManager taskManager, Supplier<TttoolService.OidTableSettings> oidTableSettingsSupplier) {
         this.selectedAlbumFolderLabel = selectedAlbumFolderLabel;
         this.tttoolService = tttoolService;
         this.logger = logger;
         this.statusUpdater = statusUpdater;
         this.taskManager = taskManager;
+        this.oidTableSettingsSupplier = oidTableSettingsSupplier;
         selectAlbumFolderButton.setOnAction(e -> selectAlbumFolder(stage));
         createOidTableButton.setOnAction(e -> runToolCreateOidTable());
     }
@@ -72,11 +75,21 @@ public class RowCreateOidTable {
             return;
         }
 
+        final TttoolService.OidTableSettings oidTableSettings;
+        try {
+            oidTableSettings = oidTableSettingsSupplier.get();
+        } catch (IllegalArgumentException e) {
+            logger.accept(e.getMessage());
+            statusUpdater.accept("Could not create OID table. Invalid PDF settings.");
+            notifyFailure(onFailure, "Could not create OID table. Invalid PDF settings.");
+            return;
+        }
+
         logger.accept("Creating OID table from: " + yamlFile.getAbsolutePath());
         statusUpdater.accept("Creating OID table...");
         taskManager.start("tttool-oid-table", () -> {
             try {
-                String output = tttoolService.createOidTable(yamlFile.toPath());
+                String output = tttoolService.createOidTable(yamlFile.toPath(), oidTableSettings);
                 Platform.runLater(() -> {
                     statusUpdater.accept("Created OID table. Done!");
                     logger.accept(output.isBlank() ? "tttool finished successfully." : output);
