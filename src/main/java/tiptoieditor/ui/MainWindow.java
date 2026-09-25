@@ -80,6 +80,7 @@ public class MainWindow {
         private ToggleSwitch appendProductIdToggle;
         private final ValidationSupport validationSupport = new ValidationSupport();
         private RowConvertAudio rowConvertAudio;
+        private RowMergeAudios rowMergeAudios;
         private RowCreateYaml rowCreateYaml;
         private RowYamlToGme rowYamlToGme;
         private RowCreateOidTable rowCreateOidTable;
@@ -93,6 +94,7 @@ public class MainWindow {
         private TextField oidTableDpiField;
         private TextField oidTablePixelSizeField;
         private TextField oidTableCodeDimField;
+        private ToggleSwitch combineAudiosInWorkflowToggle;
 
         private final WorkflowTaskManager taskManager = new WorkflowTaskManager();
         private final TttoolService tttoolService = new TttoolService(taskManager);
@@ -172,6 +174,8 @@ public class MainWindow {
                 minimumLengthField.setPrefColumnCount(4);
                 minimumLengthField.setPromptText("Minimum Length");
                 Button mergeAudiosButton = new Button("Merge Audios");
+                combineAudiosInWorkflowToggle = new ToggleSwitch();
+                combineAudiosInWorkflowToggle.setSelected(false);
 
                 Button selectAlbumFolderButton = new Button("Select Album Folder");
                 Label selectedAlbumFolderLabel = new Label("No folder selected");
@@ -248,10 +252,18 @@ public class MainWindow {
                 rowConvertAudio = new RowConvertAudio(stage, selectAudioFolderButton, selectedAudioFolderLabel,
                                 convertAudioButton, audioCopyService, audioConvertService,
                                 this::getAlbumName, this::log, this::setWorkflowStatus, taskManager);
-                new RowMergeAudios(stage, selectAudioMergeFolderButton, selectedAudioMergeFolderLabel,
-                                outputFormatComboBox, minimumLengthField, mergeAudiosButton, audioMergeService, this::log,
+                rowMergeAudios = new RowMergeAudios(stage, selectAudioMergeFolderButton, selectedAudioMergeFolderLabel,
+                                outputFormatComboBox, minimumLengthField, mergeAudiosButton, audioMergeService,
+                                this::log,
                                 this::setWorkflowStatus, taskManager, this::getAlbumName,
                                 rowConvertAudio::setSelectedAudioFolder, this::showMergeAudioResult);
+                rowMergeAudios.setOnMergeRequested(() -> {
+                        if (manyDirectoriesMode) {
+                                runToolMergeAudiosForManyDirectories();
+                        } else {
+                                rowMergeAudios.mergeSelectedFolder();
+                        }
+                });
                 selectDirectoryButton.setOnAction(e -> rowConvertAudio.selectAudioFolder(stage));
                 rowYamlToGme = new RowYamlToGme(stage, selectYamlFileButton, selectedYamlFileLabel,
                                 createGmeButton, tttoolService, audioFileNameService, this::log,
@@ -286,6 +298,7 @@ public class MainWindow {
                                 rowConvertAudio::getSelectedAudioFolder, workflowResolver, this::log,
                                 this::getMetadataName, this::setWorkflowStatus);
                 rowConvertAudio.setOnSelectedAudioFolder(folder -> {
+                        rowMergeAudios.setSelectedAudioFolder(folder);
                         selectedFolderLabel.setText(folder.getName());
                         productNameField.setText(albumNameFromFolderName(folder.getName()));
                         albumWorkflowContinuation.updateSelectedFolderControls();
@@ -306,6 +319,10 @@ public class MainWindow {
                 outputFormatLabel.setStyle("-fx-font-weight: bold;");
                 Label minimumLengthLabel = new Label("Minimum Length");
                 minimumLengthLabel.setStyle("-fx-font-weight: bold;");
+                Label combineInWorkflowLabel = new Label("Add to workflow");
+                combineInWorkflowLabel.setStyle("-fx-font-weight: bold;");
+                VBox combineInWorkflowControl = new VBox(4, combineInWorkflowLabel, combineAudiosInWorkflowToggle);
+                combineInWorkflowControl.setPadding(new Insets(5, 0, 0, 0));
                 GridPane audioMergeControls = new GridPane();
                 audioMergeControls.setHgap(10);
                 audioMergeControls.setVgap(5);
@@ -316,6 +333,7 @@ public class MainWindow {
                 audioMergeControls.add(minimumLengthLabel, 1, 1);
                 audioMergeControls.add(outputFormatComboBox, 0, 2);
                 audioMergeControls.add(minimumLengthControl, 1, 2);
+                audioMergeControls.add(combineInWorkflowControl, 2, 1, 1, 2);
                 GridPane.setMargin(outputFormatLabel, new Insets(5, 0, 0, 0));
                 GridPane.setMargin(minimumLengthLabel, new Insets(5, 0, 0, 0));
                 GridPane.setHgrow(selectedAudioMergeFolderLabel, Priority.ALWAYS);
@@ -339,11 +357,11 @@ public class MainWindow {
                 ExpandableSubActions listGmeProductIdsPane = new ExpandableSubActions(
                                 "List GME Product IDs", selectGmeFolderButton, selectedGmeFolderLabel,
                                 listGmeProductIdsButton, productIdTable, listGmeProductIdsSpinner);
-                Accordion workflowPanes = new Accordion(chapterOidSettingsPane, exportToniePane, prepAudioPane,
-                                combineAudiosPane,
+                Accordion workflowPanes = new Accordion(chapterOidSettingsPane, exportToniePane,
+                                combineAudiosPane, prepAudioPane,
                                 createYamlPane, createGmePane, createOidTablePane, listGmeProductIdsPane);
-                List<TitledPane> singleDirectoryPanes = List.of(chapterOidSettingsPane, exportToniePane, prepAudioPane,
-                                combineAudiosPane,
+                List<TitledPane> singleDirectoryPanes = List.of(chapterOidSettingsPane, exportToniePane,
+                                combineAudiosPane, prepAudioPane,
                                 createYamlPane, createGmePane, createOidTablePane, listGmeProductIdsPane);
 
                 workflowStatusBar = new StatusBar();
@@ -378,7 +396,8 @@ public class MainWindow {
                         updateDirectoryMode(useManyDirectories, productNameControl, productIdLabel,
                                         selectDirectoryControl,
                                         productDetailsGroup, runButton, workflowPanes, singleDirectoryPanes,
-                                        List.<TitledPane>of(chapterOidSettingsPane, createOidRangeTablePane,
+                                        List.<TitledPane>of(chapterOidSettingsPane, combineAudiosPane,
+                                                        createOidRangeTablePane,
                                                         listGmeProductIdsPane));
                 });
                 VBox buttonBox = new VBox(10, directoryModeButtons, rowInput, runRow, workflowStatusBar, workflowPanes,
@@ -454,13 +473,23 @@ public class MainWindow {
                                 rowExportTonieAudio.runToolExportAudio(resolution.tonieFile(), exportFolder,
                                                 exportedAlbumFolder -> {
                                                         rowConvertAudio.setSelectedAudioFolder(exportedAlbumFolder);
-                                                        rowConvertAudio.runToolCopyAndConvertForExistingAlbum(
-                                                                        exportedAlbumFolder,
-                                                                        albumWorkflowContinuation::continueFromAudioFolder);
+                                                        runOptionalMergeBeforePreparation(exportedAlbumFolder,
+                                                                        getAlbumName(),
+                                                                        audioSource -> rowConvertAudio
+                                                                                        .runToolCopyAndConvertForExistingAlbum(
+                                                                                                        exportedAlbumFolder,
+                                                                                                        audioSource,
+                                                                                                        albumWorkflowContinuation::continueFromAudioFolder,
+                                                                                                        this::setWorkflowStatus),
+                                                                        this::setWorkflowStatus);
                                                 });
                         }
-                        case PROCESS_AUDIO -> rowConvertAudio
-                                        .runToolCopyAndConvert(albumWorkflowContinuation::continueFromAudioFolder);
+                        case PROCESS_AUDIO -> runOptionalMergeBeforePreparation(selectedFolder, getAlbumName(),
+                                        audioSource -> rowConvertAudio.runToolCopyAndConvertFromSource(audioSource,
+                                                        selectedFolder,
+                                                        albumWorkflowContinuation::continueFromAudioFolder,
+                                                        this::setWorkflowStatus),
+                                        this::setWorkflowStatus);
                         case EXISTING_ALBUM -> albumWorkflowContinuation.continueFromExistingAlbum(selectedFolder,
                                         resolution.yamlFile());
                         case UNSUPPORTED -> {
@@ -469,6 +498,15 @@ public class MainWindow {
                                 setWorkflowStatus("Could not run workflow: " + logMessage);
                         }
                 }
+        }
+
+        private void runOptionalMergeBeforePreparation(File sourceFolder, String albumName,
+                        Consumer<File> onComplete, Consumer<String> onFailure) {
+                if (!combineAudiosInWorkflowToggle.isSelected()) {
+                        onComplete.accept(sourceFolder);
+                        return;
+                }
+                rowMergeAudios.runToolMergeAudiosForWorkflow(sourceFolder, albumName, onComplete, onFailure);
         }
 
         private void updateDirectoryMode(boolean useManyDirectories, VBox productNameControl, Label productIdLabel,
@@ -546,6 +584,65 @@ public class MainWindow {
                 runNextDirectory(mainDirectory, folders, 0, startingProductId);
         }
 
+        private void runToolMergeAudiosForManyDirectories() {
+                File mainDirectory = rowMergeAudios.getSelectedAudioFolder();
+                if (mainDirectory == null) {
+                        log("Please select a folder first.");
+                        setWorkflowStatus("Please select a folder first.");
+                        return;
+                }
+                AudioMergeService.OutputFormat outputFormat = rowMergeAudios.getSelectedOutputFormat();
+                if (outputFormat == null) {
+                        log("Please select an output format.");
+                        setWorkflowStatus("Please select an output format.");
+                        return;
+                }
+
+                File[] children = mainDirectory.listFiles(File::isDirectory);
+                if (children == null || children.length == 0) {
+                        log("The selected directory contains no subdirectories.");
+                        setWorkflowStatus("The selected directory contains no subdirectories.");
+                        return;
+                }
+
+                List<File> folders = Arrays.stream(children)
+                                .sorted(Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER))
+                                .toList();
+                manyDirectoryResults.getChildren().clear();
+                manyDirectoriesCancelled = false;
+                runNextAudioMerge(folders, 0, outputFormat);
+        }
+
+        private void runNextAudioMerge(List<File> folders, int folderIndex,
+                        AudioMergeService.OutputFormat outputFormat) {
+                if (manyDirectoriesCancelled) {
+                        setWorkflowStatus("Many-directories audio merge cancelled.");
+                        return;
+                }
+                if (folderIndex >= folders.size()) {
+                        setWorkflowStatus("Done! Audio merged for " + folders.size() + " directories.");
+                        return;
+                }
+
+                File folder = folders.get(folderIndex);
+                String albumName = albumNameFromFolderName(folder.getName());
+                rowMergeAudios.runToolMergeAudios(folder, albumName, outputFormat,
+                                result -> {
+                                        Label success = new Label(RowMergeAudios.mergeResultMessage(result, folder,
+                                                        albumName));
+                                        success.setStyle(STATUS_SUCCESS_STYLE);
+                                        success.setWrapText(true);
+                                        manyDirectoryResults.getChildren().add(success);
+                                        runNextAudioMerge(folders, folderIndex + 1, outputFormat);
+                                }, failure -> {
+                                        Label failed = new Label("Failed " + folder.getName() + ": " + failure);
+                                        failed.setStyle(STATUS_ERROR_STYLE);
+                                        failed.setWrapText(true);
+                                        manyDirectoryResults.getChildren().add(failed);
+                                        runNextAudioMerge(folders, folderIndex + 1, outputFormat);
+                                });
+        }
+
         private void runNextDirectory(File mainDirectory, List<File> folders, int folderIndex, int productId) {
                 if (manyDirectoriesCancelled) {
                         setWorkflowStatus("Many-directories workflow cancelled.");
@@ -594,19 +691,29 @@ public class MainWindow {
                                 rowExportTonieAudio.runToolExportAudio(resolution.tonieFile(), exportFolder,
                                                 exportedAlbumFolder -> {
                                                         rowConvertAudio.setSelectedAudioFolder(exportedAlbumFolder);
-                                                        rowConvertAudio.runToolCopyAndConvertForExistingAlbum(
-                                                                        exportedAlbumFolder,
-                                                                        audioFolder -> albumWorkflowContinuation
-                                                                                        .continueFromAudioFolder(
-                                                                                                        audioFolder,
-                                                                                                        onComplete,
+                                                        runOptionalMergeBeforePreparation(exportedAlbumFolder,
+                                                                        getAlbumName(),
+                                                                        audioSource -> rowConvertAudio
+                                                                                        .runToolCopyAndConvertForExistingAlbum(
+                                                                                                        exportedAlbumFolder,
+                                                                                                        audioSource,
+                                                                                                        audioFolder -> albumWorkflowContinuation
+                                                                                                                        .continueFromAudioFolder(
+                                                                                                                                        audioFolder,
+                                                                                                                                        onComplete,
+                                                                                                                                        onFailure),
                                                                                                         onFailure),
                                                                         onFailure);
                                                 }, onFailure, false);
                         }
-                        case PROCESS_AUDIO -> rowConvertAudio.runToolCopyAndConvert(
-                                        audioFolder -> albumWorkflowContinuation.continueFromAudioFolder(audioFolder,
-                                                        onComplete, onFailure),
+                        case PROCESS_AUDIO -> runOptionalMergeBeforePreparation(folder, getAlbumName(),
+                                        audioSource -> rowConvertAudio.runToolCopyAndConvertFromSource(audioSource,
+                                                        folder,
+                                                        audioFolder -> albumWorkflowContinuation
+                                                                        .continueFromAudioFolder(
+                                                                                        audioFolder, onComplete,
+                                                                                        onFailure),
+                                                        onFailure),
                                         onFailure);
                         case EXISTING_ALBUM -> albumWorkflowContinuation.continueFromExistingAlbum(folder,
                                         resolution.yamlFile(), onComplete, onFailure);
@@ -746,7 +853,11 @@ public class MainWindow {
                 Label result = new Label(message);
                 result.setStyle(STATUS_SUCCESS_STYLE);
                 result.setWrapText(true);
-                manyDirectoryResults.getChildren().setAll(result);
+                if (manyDirectoriesMode) {
+                        manyDirectoryResults.getChildren().add(result);
+                } else {
+                        manyDirectoryResults.getChildren().setAll(result);
+                }
         }
 
         private static HBox createSettingsInputRow(String labelText, TextField field) {

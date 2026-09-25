@@ -19,23 +19,33 @@ public class AudioCopyService {
      * An empty album name falls back to {@code tttoolAlbum}.
      */
     public File prepareAudioFolder(File sourceFolder, String albumName) {
+        return prepareAudioFolder(sourceFolder, sourceFolder, albumName);
+    }
+
+    /** Copies {@code sourceFolder}'s audio into an album located relative to {@code albumLocationFolder}. */
+    public File prepareAudioFolder(File sourceFolder, File albumLocationFolder, String albumName) {
         String resolvedAlbumName = albumName == null || albumName.isBlank()
                 ? "tttoolAlbum"
                 : albumName.trim();
 
         String baseAlbumName = withoutExportSuffix(resolvedAlbumName);
-        File albumFolder = sourceFolder.getName().endsWith(EXPORT_SUFFIX)
-                ? new File(sourceFolder.getParentFile(), baseAlbumName + ALBUM_SUFFIX)
-                : new File(sourceFolder, baseAlbumName + ALBUM_SUFFIX);
+        File albumFolder = albumLocationFolder.getName().endsWith(EXPORT_SUFFIX)
+                ? new File(albumLocationFolder.getParentFile(), baseAlbumName + ALBUM_SUFFIX)
+                : new File(albumLocationFolder, baseAlbumName + ALBUM_SUFFIX);
         return copyAudioFiles(sourceFolder, albumFolder);
     }
 
     /** Copies audio files from an existing album folder into its {@code audio} subdirectory. */
     public File prepareAudioFolderForExistingAlbum(File albumFolder) {
+        return prepareAudioFolderForExistingAlbum(albumFolder, albumFolder);
+    }
+
+    /** Copies audio from {@code sourceFolder} into the album folder derived from {@code albumFolder}. */
+    public File prepareAudioFolderForExistingAlbum(File albumFolder, File sourceFolder) {
         File targetAlbumFolder = albumFolder.getName().endsWith(EXPORT_SUFFIX)
                 ? new File(albumFolder.getParentFile(), withoutExportSuffix(albumFolder.getName()) + ALBUM_SUFFIX)
                 : albumFolder;
-        return copyAudioFiles(albumFolder, targetAlbumFolder);
+        return copyAudioFiles(sourceFolder, targetAlbumFolder);
     }
 
     private String withoutExportSuffix(String name) {

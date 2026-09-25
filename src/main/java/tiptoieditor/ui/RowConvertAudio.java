@@ -95,6 +95,34 @@ public class RowConvertAudio {
         });
     }
 
+    /** Prepares audio from a separate source folder while keeping the album beside {@code albumLocationFolder}. */
+    public void runToolCopyAndConvertFromSource(File sourceAudioFolder, File albumLocationFolder,
+            Consumer<File> onComplete, Consumer<String> onFailure) {
+        String albumName = albumNameSupplier.get();
+        String resolvedAlbumName = albumName == null || albumName.isBlank() ? "tttoolAlbum" : albumName.trim();
+
+        logger.accept("Preparing folder structure for album: " + resolvedAlbumName);
+        statusUpdater.accept("Prepping audio fiiles...");
+        taskManager.start("audio-convert", () -> {
+            try {
+                File audioFolder = audioCopyService.prepareAudioFolder(sourceAudioFolder, albumLocationFolder,
+                        resolvedAlbumName);
+                if (Thread.currentThread().isInterrupted()) {
+                    logger.accept(cancelText);
+                    statusUpdater.accept(cancelText);
+                    notifyFailure(onFailure, cancelText);
+                    return;
+                }
+                logger.accept("Audio copied to: " + audioFolder.getAbsolutePath());
+                processAudioFolder(audioFolder, onComplete, onFailure);
+            } catch (Exception e) {
+                logger.accept("Could not prepare audio: " + e.getMessage());
+                statusUpdater.accept("Audio preparation failed.");
+                notifyFailure(onFailure, "Audio preparation failed.");
+            }
+        });
+    }
+
     /**
      * Processes an existing album audio directory and then continues on the JavaFX
      * thread.
@@ -115,10 +143,16 @@ public class RowConvertAudio {
     /** Copies an existing album's audio and reports a failed workflow step to {@code onFailure}. */
     public void runToolCopyAndConvertForExistingAlbum(File albumFolder, Consumer<File> onComplete,
             Consumer<String> onFailure) {
+        runToolCopyAndConvertForExistingAlbum(albumFolder, albumFolder, onComplete, onFailure);
+    }
+
+    /** Copies audio from {@code sourceFolder} into an existing album and processes it. */
+    public void runToolCopyAndConvertForExistingAlbum(File albumFolder, File sourceFolder, Consumer<File> onComplete,
+            Consumer<String> onFailure) {
         statusUpdater.accept("Prepping audio fiiles...");
         taskManager.start("audio-convert", () -> {
             try {
-                File audioFolder = audioCopyService.prepareAudioFolderForExistingAlbum(albumFolder);
+                File audioFolder = audioCopyService.prepareAudioFolderForExistingAlbum(albumFolder, sourceFolder);
                 if (Thread.currentThread().isInterrupted()) {
                     logger.accept(cancelText);
                     statusUpdater.accept(cancelText);
