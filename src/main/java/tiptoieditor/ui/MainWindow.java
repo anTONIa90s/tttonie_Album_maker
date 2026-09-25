@@ -10,6 +10,7 @@ import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.scene.control.Accordion;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
@@ -23,6 +24,7 @@ import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.TitledPane;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -33,6 +35,7 @@ import javafx.beans.property.SimpleStringProperty;
 import service.audio.AudioConvertService;
 import service.audio.AudioCopyService;
 import service.audio.AudioFileNameService;
+import service.audio.AudioMergeService;
 import service.tonie.TonieAudioExportService;
 import service.tonie.TonieExportDestinationService;
 import service.tttool.TttoolService;
@@ -95,6 +98,7 @@ public class MainWindow {
         private final TttoolService tttoolService = new TttoolService(taskManager);
         private final AudioCopyService audioCopyService = new AudioCopyService();
         private final AudioConvertService audioConvertService = new AudioConvertService(this::log, taskManager);
+        private final AudioMergeService audioMergeService = new AudioMergeService(this::log, taskManager);
         private final AudioFileNameService audioFileNameService = new AudioFileNameService();
         private final TonieAudioExportService tonieAudioExportService = new TonieAudioExportService();
         private final TonieExportDestinationService tonieExportDestinationService = new TonieExportDestinationService();
@@ -124,8 +128,8 @@ public class MainWindow {
 
                 Button selectDirectoryButton = new Button("Select Directory");
                 selectDirectoryButton.setPrefHeight(40);
-                Label selectedFolderPathLabel = new Label("No folder selected");
-                selectedFolderPathLabel.setStyle("-fx-text-fill: gray;");
+                Label selectedFolderLabel = new Label("No folder selected");
+                selectedFolderLabel.setStyle("-fx-text-fill: gray;");
                 Label productNameLabel = new Label("Album Name");
                 productNameLabel.setStyle("-fx-font-weight: bold;");
                 Label productIdLabel = new Label("Product ID");
@@ -142,7 +146,7 @@ public class MainWindow {
                 inputControlsRow.setMaxWidth(Double.MAX_VALUE);
                 HBox.setHgrow(productNameControl, Priority.ALWAYS);
                 productNameControl.setMaxWidth(Double.MAX_VALUE);
-                VBox rowInput = new VBox(4, selectedFolderPathLabel, inputControlsRow);
+                VBox rowInput = new VBox(4, selectedFolderLabel, inputControlsRow);
 
                 Button runButton = new Button("Run tttool");
                 runButton.setPrefHeight(50);
@@ -157,6 +161,17 @@ public class MainWindow {
                 Button selectAudioFolderButton = new Button("Select Audio Folder");
                 Label selectedAudioFolderLabel = new Label("No folder selected");
                 Button convertAudioButton = new Button("Convert Audio");
+
+                Button selectAudioMergeFolderButton = new Button("Select Audio Folder");
+                Label selectedAudioMergeFolderLabel = new Label("No folder selected");
+                ComboBox<AudioMergeService.OutputFormat> outputFormatComboBox = new ComboBox<>(
+                                FXCollections.observableArrayList(AudioMergeService.OutputFormat.values()));
+                outputFormatComboBox.getStyleClass().add("format-dropdown");
+                outputFormatComboBox.setValue(AudioMergeService.OutputFormat.OGG);
+                TextField minimumLengthField = new TextField("5");
+                minimumLengthField.setPrefColumnCount(4);
+                minimumLengthField.setPromptText("Minimum Length");
+                Button mergeAudiosButton = new Button("Merge Audios");
 
                 Button selectAlbumFolderButton = new Button("Select Album Folder");
                 Label selectedAlbumFolderLabel = new Label("No folder selected");
@@ -233,6 +248,10 @@ public class MainWindow {
                 rowConvertAudio = new RowConvertAudio(stage, selectAudioFolderButton, selectedAudioFolderLabel,
                                 convertAudioButton, audioCopyService, audioConvertService,
                                 this::getAlbumName, this::log, this::setWorkflowStatus, taskManager);
+                new RowMergeAudios(stage, selectAudioMergeFolderButton, selectedAudioMergeFolderLabel,
+                                outputFormatComboBox, minimumLengthField, mergeAudiosButton, audioMergeService, this::log,
+                                this::setWorkflowStatus, taskManager, this::getAlbumName,
+                                rowConvertAudio::setSelectedAudioFolder, this::showMergeAudioResult);
                 selectDirectoryButton.setOnAction(e -> rowConvertAudio.selectAudioFolder(stage));
                 rowYamlToGme = new RowYamlToGme(stage, selectYamlFileButton, selectedYamlFileLabel,
                                 createGmeButton, tttoolService, audioFileNameService, this::log,
@@ -267,7 +286,7 @@ public class MainWindow {
                                 rowConvertAudio::getSelectedAudioFolder, workflowResolver, this::log,
                                 this::getMetadataName, this::setWorkflowStatus);
                 rowConvertAudio.setOnSelectedAudioFolder(folder -> {
-                        selectedFolderPathLabel.setText(folder.getAbsolutePath());
+                        selectedFolderLabel.setText(folder.getName());
                         productNameField.setText(albumNameFromFolderName(folder.getName()));
                         albumWorkflowContinuation.updateSelectedFolderControls();
                 });
@@ -281,6 +300,28 @@ public class MainWindow {
                 ExpandableSubActions prepAudioPane = new ExpandableSubActions(
                                 "Only prep audio", selectAudioFolderButton, selectedAudioFolderLabel,
                                 convertAudioButton);
+                HBox minimumLengthControl = new HBox(5, minimumLengthField, new Label("min"));
+                minimumLengthControl.setAlignment(Pos.CENTER_LEFT);
+                Label outputFormatLabel = new Label("Output Format");
+                outputFormatLabel.setStyle("-fx-font-weight: bold;");
+                Label minimumLengthLabel = new Label("Minimum Length");
+                minimumLengthLabel.setStyle("-fx-font-weight: bold;");
+                GridPane audioMergeControls = new GridPane();
+                audioMergeControls.setHgap(10);
+                audioMergeControls.setVgap(5);
+                audioMergeControls.add(selectAudioMergeFolderButton, 0, 0);
+                audioMergeControls.add(selectedAudioMergeFolderLabel, 1, 0);
+                audioMergeControls.add(mergeAudiosButton, 2, 0);
+                audioMergeControls.add(outputFormatLabel, 0, 1);
+                audioMergeControls.add(minimumLengthLabel, 1, 1);
+                audioMergeControls.add(outputFormatComboBox, 0, 2);
+                audioMergeControls.add(minimumLengthControl, 1, 2);
+                GridPane.setMargin(outputFormatLabel, new Insets(5, 0, 0, 0));
+                GridPane.setMargin(minimumLengthLabel, new Insets(5, 0, 0, 0));
+                GridPane.setHgrow(selectedAudioMergeFolderLabel, Priority.ALWAYS);
+                audioMergeControls.setMaxWidth(Double.MAX_VALUE);
+                ExpandableSubActions combineAudiosPane = new ExpandableSubActions("Only combine audios",
+                                audioMergeControls);
                 ExpandableSubActions createYamlPane = new ExpandableSubActions(
                                 "Only create YAML", selectAlbumFolderButton, selectedAlbumFolderLabel,
                                 createYamlButton);
@@ -299,8 +340,10 @@ public class MainWindow {
                                 "List GME Product IDs", selectGmeFolderButton, selectedGmeFolderLabel,
                                 listGmeProductIdsButton, productIdTable, listGmeProductIdsSpinner);
                 Accordion workflowPanes = new Accordion(chapterOidSettingsPane, exportToniePane, prepAudioPane,
+                                combineAudiosPane,
                                 createYamlPane, createGmePane, createOidTablePane, listGmeProductIdsPane);
                 List<TitledPane> singleDirectoryPanes = List.of(chapterOidSettingsPane, exportToniePane, prepAudioPane,
+                                combineAudiosPane,
                                 createYamlPane, createGmePane, createOidTablePane, listGmeProductIdsPane);
 
                 workflowStatusBar = new StatusBar();
@@ -697,6 +740,13 @@ public class MainWindow {
                 field.setTextFormatter(new TextFormatter<>(
                                 change -> change.getControlNewText().matches("\\d*") ? change : null));
                 return field;
+        }
+
+        private void showMergeAudioResult(String message) {
+                Label result = new Label(message);
+                result.setStyle(STATUS_SUCCESS_STYLE);
+                result.setWrapText(true);
+                manyDirectoryResults.getChildren().setAll(result);
         }
 
         private static HBox createSettingsInputRow(String labelText, TextField field) {

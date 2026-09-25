@@ -42,6 +42,63 @@
     -fx-effect: none;
 }
 
+/* Output-format selector styled to match the raised action buttons. */
+.combo-box.format-dropdown {
+    -fx-background-color: linear-gradient(to bottom, #fff1d4 0%, #ffe5ad 46%, #ffc45a 100%);
+    -fx-background-radius: 8;
+    -fx-border-color: #8d430b;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-text-fill: #4a2407;
+    -fx-font-weight: bold;
+}
+
+.combo-box.format-dropdown > .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #4a2407;
+    -fx-padding: 0.58em 0.7em 0.68em 1.1em;
+}
+
+.combo-box.format-dropdown > .arrow-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0.58em 0.9em 0.68em 0.65em;
+}
+
+.combo-box.format-dropdown > .arrow-button > .arrow {
+    -fx-background-color: #663009;
+}
+
+.combo-box.format-dropdown:hover {
+    -fx-background-color: linear-gradient(to bottom, #fff0c8 0%, #ffd06d 46%, #eb881f 100%);
+}
+
+.combo-box.format-dropdown:showing {
+    -fx-background-color: linear-gradient(to bottom, #d96b12 0%, #f3a134 100%);
+}
+
+.combo-box.format-dropdown:focused {
+    -fx-border-color: #713000, #fff1c9;
+    -fx-border-width: 1, 1;
+    -fx-border-insets: 0, 2;
+    -fx-border-radius: 8, 6;
+}
+
+.combo-box-popup .list-view {
+    -fx-background-color: #fff1d4;
+    -fx-border-color: #8d430b;
+}
+
+.combo-box-popup .list-cell {
+    -fx-background-color: #fff1d4;
+    -fx-text-fill: #4a2407;
+    -fx-font-weight: bold;
+}
+
+.combo-box-popup .list-cell:hover,
+.combo-box-popup .list-cell:selected {
+    -fx-background-color: #ffc45a;
+}
+
 /* Segmented mode selector: ToggleButtons styled as tabs, not a TabPane. */
 .directory-mode-tabs {
     -fx-padding: 2 0 0 0;
