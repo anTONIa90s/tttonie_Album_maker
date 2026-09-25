@@ -93,6 +93,12 @@ public class RowMergeAudios {
     /** Runs a merge with the current minimum-length field and reports its result on the JavaFX thread. */
     public void runToolMergeAudios(File sourceFolder, String albumName, AudioMergeService.OutputFormat outputFormat,
             Consumer<AudioMergeService.MergeResult> onComplete, Consumer<String> onFailure) {
+        runToolMergeAudios(sourceFolder, albumName, outputFormat, null, onComplete, onFailure);
+    }
+
+    /** Runs a merge with the current minimum-length field into an optional custom output folder. */
+    public void runToolMergeAudios(File sourceFolder, String albumName, AudioMergeService.OutputFormat outputFormat,
+            File outputFolder, Consumer<AudioMergeService.MergeResult> onComplete, Consumer<String> onFailure) {
         double minimumLength;
         try {
             minimumLength = getMinimumLength();
@@ -106,8 +112,11 @@ public class RowMergeAudios {
         statusUpdater.accept("Merging audios...");
         taskManager.start("audio-merge", () -> {
             try {
-                AudioMergeService.MergeResult result = audioMergeService.mergeAudioFiles(sourceFolder, minimumLength,
-                                outputFormat, albumName);
+                AudioMergeService.MergeResult result = outputFolder == null
+                                ? audioMergeService.mergeAudioFiles(sourceFolder, minimumLength, outputFormat,
+                                                albumName)
+                                : audioMergeService.mergeAudioFiles(sourceFolder, minimumLength, outputFormat,
+                                                albumName, outputFolder);
                 statusUpdater.accept("Audios merged. Done!");
                 if (onComplete != null) {
                     javafx.application.Platform.runLater(() -> onComplete.accept(result));

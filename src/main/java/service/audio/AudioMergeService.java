@@ -50,6 +50,13 @@ public class AudioMergeService {
      */
     public MergeResult mergeAudioFiles(File sourceFolder, double minimumMinutes, OutputFormat outputFormat,
             String albumName) throws IOException {
+        return mergeAudioFiles(sourceFolder, minimumMinutes, outputFormat, albumName,
+                new File(sourceFolder, "longer tracks"));
+    }
+
+    /** Writes the combined files to the supplied output folder. */
+    public MergeResult mergeAudioFiles(File sourceFolder, double minimumMinutes, OutputFormat outputFormat,
+            String albumName, File targetFolder) throws IOException {
         if (!sourceFolder.isDirectory()) {
             throw new IllegalArgumentException("The selected audio folder does not exist: " + sourceFolder);
         }
@@ -75,7 +82,6 @@ public class AudioMergeService {
 
         List<List<AudioFileDuration>> groups = groupByMinimumDuration(filesWithDurations,
                 minimumMinutes * 60);
-        File targetFolder = new File(sourceFolder, "longer tracks");
         if (!targetFolder.exists() && !targetFolder.mkdirs()) {
             throw new IOException("Could not create output folder: " + targetFolder);
         }

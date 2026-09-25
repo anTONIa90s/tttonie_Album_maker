@@ -169,7 +169,7 @@ public class MainWindow {
                 ComboBox<AudioMergeService.OutputFormat> outputFormatComboBox = new ComboBox<>(
                                 FXCollections.observableArrayList(AudioMergeService.OutputFormat.values()));
                 outputFormatComboBox.getStyleClass().add("format-dropdown");
-                outputFormatComboBox.setValue(AudioMergeService.OutputFormat.OGG);
+                outputFormatComboBox.setValue(AudioMergeService.OutputFormat.MP3);
                 TextField minimumLengthField = new TextField("5");
                 minimumLengthField.setPrefColumnCount(4);
                 minimumLengthField.setPromptText("Minimum Length");
@@ -606,15 +606,20 @@ public class MainWindow {
                 }
 
                 List<File> folders = Arrays.stream(children)
+                                .filter(folder -> !folder.getName().equalsIgnoreCase("longer tracks"))
                                 .sorted(Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER))
                                 .toList();
+                if (folders.isEmpty()) {
+                        setWorkflowStatus("The selected directory contains no album subdirectories.");
+                        return;
+                }
                 manyDirectoryResults.getChildren().clear();
                 manyDirectoriesCancelled = false;
-                runNextAudioMerge(folders, 0, outputFormat);
+                runNextAudioMerge(folders, 0, outputFormat, new File(mainDirectory, "longer tracks"));
         }
 
         private void runNextAudioMerge(List<File> folders, int folderIndex,
-                        AudioMergeService.OutputFormat outputFormat) {
+                        AudioMergeService.OutputFormat outputFormat, File parentOutputFolder) {
                 if (manyDirectoriesCancelled) {
                         setWorkflowStatus("Many-directories audio merge cancelled.");
                         return;
@@ -626,20 +631,21 @@ public class MainWindow {
 
                 File folder = folders.get(folderIndex);
                 String albumName = albumNameFromFolderName(folder.getName());
-                rowMergeAudios.runToolMergeAudios(folder, albumName, outputFormat,
+                File albumOutputFolder = new File(parentOutputFolder, folder.getName());
+                rowMergeAudios.runToolMergeAudios(folder, albumName, outputFormat, albumOutputFolder,
                                 result -> {
                                         Label success = new Label(RowMergeAudios.mergeResultMessage(result, folder,
                                                         albumName));
                                         success.setStyle(STATUS_SUCCESS_STYLE);
                                         success.setWrapText(true);
                                         manyDirectoryResults.getChildren().add(success);
-                                        runNextAudioMerge(folders, folderIndex + 1, outputFormat);
+                                        runNextAudioMerge(folders, folderIndex + 1, outputFormat, parentOutputFolder);
                                 }, failure -> {
                                         Label failed = new Label("Failed " + folder.getName() + ": " + failure);
                                         failed.setStyle(STATUS_ERROR_STYLE);
                                         failed.setWrapText(true);
                                         manyDirectoryResults.getChildren().add(failed);
-                                        runNextAudioMerge(folders, folderIndex + 1, outputFormat);
+                                        runNextAudioMerge(folders, folderIndex + 1, outputFormat, parentOutputFolder);
                                 });
         }
 
